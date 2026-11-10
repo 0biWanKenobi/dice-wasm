@@ -14,7 +14,7 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -25,7 +25,7 @@ jobs:
         run: cargo install wasm-pack --locked
       - name: Compile browser WASM package
         run: sh ./build.sh
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
       - name: Finalize package metadata
@@ -35,7 +35,7 @@ jobs:
       - name: Verify package archive
         working-directory: dist
         run: npm pack --dry-run
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: dice-wasm-package
           path: dist/
@@ -48,11 +48,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: dice-wasm-package
           path: dist/
