@@ -45,7 +45,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test-and-build
     runs-on: ubuntu-latest
-    environment: npm
     permissions:
       contents: write
       id-token: write
