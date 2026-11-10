@@ -1,4 +1,4 @@
-name: Build and publish WASM package
+name: Build and release WASM package
 
 on:
   push:
@@ -23,56 +23,54 @@ jobs:
         run: cargo test --locked
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
-      - name: Compile WASM npm package
+      - name: Compile browser WASM package
         run: sh ./build.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Finalize npm metadata
+      - name: Finalize package metadata
         run: node scripts/prepare-package.mjs
-      - name: Check published API surface
+      - name: Check generated API and assets
         run: node scripts/check-package.mjs
-      - name: Verify npm tarball
+      - name: Verify package archive
         working-directory: dist
         run: npm pack --dry-run
       - uses: actions/upload-artifact@v4
         with:
-          name: dice-wasm-npm
+          name: dice-wasm-package
           path: dist/
           if-no-files-found: error
 
-  publish:
+  release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test-and-build
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
       - uses: actions/download-artifact@v4
         with:
-          name: dice-wasm-npm
+          name: dice-wasm-package
           path: dist/
-      - name: Validate tag and package version
+      - name: Check release version matches Cargo and package
         shell: bash
         run: |
-          VERSION="$(node -p 'require("./dist/package.json").version')"
-          test "${GITHUB_REF_NAME}" = "v${VERSION}"
-      - name: Publish to npm using trusted publishing
+          PACKAGE_VERSION="$(node -p 'require("./dist/package.json").version')"
+          CARGO_VERSION="$(sed -n '/^\[package\]/,/^\[/s/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          test "${GITHUB_REF_NAME}" = "v${PACKAGE_VERSION}"
+          test "${PACKAGE_VERSION}" = "${CARGO_VERSION}"
+      - name: Produce versioned installable archive
         working-directory: dist
+        shell: bash
         run: |
-          npm install -g npm@latest
-          npm publish --access public --provenance
-      - name: Create release tarball
-        working-directory: dist
-        run: npm pack --pack-destination ..
-      - name: Publish GitHub release
+          TARBALL="$(npm pack --pack-destination .. --silent)"
+          mv "../${TARBALL}" "../dice-wasm-${GITHUB_REF_NAME}.tgz"
+      - name: Publish package to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" ./*.tgz --generate-notes --verify-tag
+          gh release create "${GITHUB_REF_NAME}"             "dice-wasm-${GITHUB_REF_NAME}.tgz"             --generate-notes --verify-tag
