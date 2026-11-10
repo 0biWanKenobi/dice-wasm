@@ -1,47 +1,66 @@
-# Chumsky Dice WASM (starter)
+# dice-wasm
 
-A Rust/Chumsky parser and evaluator compiled to a TypeScript-importable WASM package using Docker Compose.
+A browser-compatible Rust/WASM formula and dice engine using [Chumsky](https://github.com/zesterer/chumsky).
+The npm package is published as **`@0biwankenobi/dice-wasm`**.
 
-## Build
+## Build locally
 
-```bash
+```sh
 docker compose run --rm wasm-build
+node scripts/prepare-package.mjs
+node scripts/check-package.mjs
 ```
 
-Build output appears under `./dist/` (the `bundler` target supported by Vite, webpack, etc.). The first build downloads Rust crates and wasm-pack via the container.
+The output is in `dist/` (ES modules, TypeScript declarations, and the WASM binary).
+The `bundler` target is designed for Vite, webpack, and similar bundlers.
 
-## TypeScript / Vite
+## Consumer usage
 
-In the TS application:
+After npm publication:
 
-```bash
-npm install /absolute/path/to/chumsky-dice-wasm/dist
+```sh
+npm install @0biwankenobi/dice-wasm
 ```
 
 ```ts
-import { CompiledFormula } from 'chumsky-dice';
+import { CompiledFormula } from '@0biwankenobi/dice-wasm';
 
-const formula = new CompiledFormula('kh(4d8, 2) + PROF');
-console.log(formula.dependencies()); // ['PROF']
-console.log(formula.ast());
-console.log(formula.evaluate({ PROF: 2 })); // { value: number, dice: number[][] }
-formula.free(); // When no longer needed
+const formula = new CompiledFormula('kh(4d8, 2) + 3');
+console.log(formula.dependencies());
+console.log(formula.rollable()); // true
+const result = formula.roll();
+console.log(result); // { value, dice: [{ rolls, kept, total }] }
+formula.free();
 ```
 
-`CompiledFormula` retains its AST between evaluation calls; your TypeScript reactive dependency graph should continue to decide when to reevaluate.
+The parser supports braced references such as `{STR}`, expressions as either
+dice operand (`({STR}+1)d(max(6,8))`), mathematical functions, comparisons,
+conditionals, and `kh` / `dl`. The consuming application must resolve nested
+references before evaluating; this engine does not manage a reactive graph.
 
-## Syntax
+## Release workflow
 
-- Numbers, uppercase variable names, parentheses, `+ - * /`, comparison operators
-- Compact dice notation `3d6`, `DEXd6` and `(STR + 2)d(DEX + 4)`
-- Functions: `floor`, `ceil`, `abs`, `min`, `max`, `kh`, `dl`
-- `kh` and `dl` currently expect a bare dice expression as their first argument, e.g. `kh(4d8,2)`. The full roll group is preserved in `dice`, but kept/dropped flags are not yet separately returned.
+`.github/workflows/release.yml` runs Rust tests, builds the WASM package,
+checks its generated public API, and uploads a build artifact on pushes.
+On a version tag (e.g. `v0.1.0`), it additionally publishes to npm and creates
+a GitHub release with a package tarball. The tag must match the version in
+`Cargo.toml`.
 
-## Known limitations
+**First-time npm setup (one-time):**
 
-- **Not locally compiled or validated**: this environment has no Rust/Cargo/Docker or network access. The crate is provided as a starting implementation; compilation fixes may be necessary, particularly with Chumsky 0.13's evolving APIs.
-- To distinguish `DEXd6` unambiguously from a field named `DEXd6`, variables are currently uppercase (`STR_MOD`, `CHARACTER.STR`) and function names lowercase (`floor`, `min`). Lowercase variable identifiers are not supported yet.
-- User-defined function names require adding handlers in Rust; no dynamic JS callback registration yet.
-- A formula containing dice reevaluates dice every call; invoke `evaluate()` only when a roll is requested for such formulas.
-- Randomness currently uses `Math.random()`, not cryptographic randomness.
-- Numeric inputs are `f64` and booleans can be evaluation results; boolean variables are not supported.
+1. Ensure you control the `@0biwankenobi` namespace on npm. The npm account
+   need not be the same as the GitHub account, but it must own this scope.
+2. npm requires the package to exist before a trusted publisher can be configured.
+   Publish the **first** package manually with `npm publish --access public` from
+   the generated `dist/` after a successful build, while authenticated on npm.
+3. On the package's npm settings, configure a GitHub Actions trusted publisher:
+   GitHub owner `0biWanKenobi`, repository `dice-wasm`, workflow filename
+   `release.yml`, with direct `npm publish` permission.
+4. For the first `v0.1.0` release, if version 0.1.0 was used during bootstrap,
+   **do not publish the same version again**: bump `Cargo.toml` to 0.1.1 and
+   tag `v0.1.1`. npm versions are immutable.
+5. Future releases: update crate version, commit it, and push matching
+   `vX.Y.Z` tags. No long-lived npm token is needed.
+
+The consumer repository is
+[ts_reactive_character_sheet_test](https://github.com/0biWanKenobi/ts_reactive_character_sheet_test/tree/rust-wasm-engine).
