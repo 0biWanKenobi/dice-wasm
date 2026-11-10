@@ -24,7 +24,7 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
       - name: Compile WASM npm package
-        run: ./build.sh
+        run: sh ./build.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
