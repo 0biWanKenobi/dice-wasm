@@ -10,7 +10,8 @@ pkg.repository = {
   url: 'git+https://github.com/0biWanKenobi/dice-wasm.git'
 };
 pkg.homepage = 'https://github.com/0biWanKenobi/dice-wasm';
-pkg.publishConfig = { access: 'public' };
+// The package is distributed through GitHub Releases, not a registry.
+delete pkg.publishConfig;
 // Keep wasm-pack's generated entry points, declarations and files list.
 writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`Prepared ${pkg.name}@${pkg.version}`);
