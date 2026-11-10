@@ -10,7 +10,7 @@ for (const file of [
   if (!existsSync('dist/' + file)) throw new Error('Missing generated file: ' + file);
 }
 const declarations = readFileSync('dist/chumsky_dice.d.ts', 'utf8');
-for (const method of ['CompiledFormula', 'dependencies', 'rollable', 'evaluate', 'roll']) {
+for (const method of ['CompiledFormula', 'FormulaContext', 'dependencies', 'rollable', 'evaluate', 'resolve', 'set', 'remove', 'roll']) {
   if (!declarations.includes(method)) throw new Error('Missing WASM API: ' + method);
 }
 console.log('Generated npm package API looks correct');

@@ -22,7 +22,7 @@ Install the versioned GitHub Release asset with npm (npm is the package installe
 not the package host):
 
 ```sh
-npm install https://github.com/0biWanKenobi/dice-wasm/releases/download/v0.1.0/dice-wasm-v0.1.0.tgz
+npm install https://github.com/0biWanKenobi/dice-wasm/releases/download/v0.2.0/dice-wasm-v0.2.0.tgz
 ```
 
 Then import the packaged library by its declared package name:
@@ -37,8 +37,51 @@ console.log(compiled.roll()); // { value, dice: [{ rolls, kept, total }] }
 compiled.free();
 ```
 
-Use `evaluate()` only for expressions without dice. Fields are referenced with braces, e.g.
-`{STR}`; recursive reference resolution and reactivity belong to the consuming application.
+Use `evaluate()` only for standalone expressions without dice. For formulas referencing
+other fields, use a `FormulaContext` (added in v0.2.0):
+
+```ts
+import { CompiledFormula, FormulaContext } from '@0biwankenobi/dice-wasm';
+
+const context = new FormulaContext();
+for (const [id, source] of Object.entries({
+  STAT: '18',
+  MOD: 'floor(({STAT} - 10) / 2)',
+  DAMAGE: '3d6 + {MOD}',
+})) {
+  const formula = new CompiledFormula(source);
+  context.set(id, formula);
+  formula.free(); // The context retains a shared reference to the compiled tree.
+}
+console.log(context.resolve('DAMAGE'));
+// { expression: '3d6 + 4', value: undefined, rollable: true,
+//   dependencies: ['MOD', 'STAT'] }
+console.log(context.roll('DAMAGE')); // { value, dice }
+context.remove('DAMAGE');
+context.free();
+```
+
+`set(id, compiled)` replaces that binding without recompiling its dependents. A context
+owns shared references to original compiled trees; it neither expands source strings
+nor reparses the displayed expression. The consuming application should read reachable
+field sources in its reactive scope and update bindings when their sources change.
+
+`resolve(id)` validates all reachable references, detects cycles, and reduces deterministic
+subexpressions to numeric or boolean values. It returns a value for deterministic formulas;
+rollable formulas have no preview value. Deterministic conditions select only their active
+branch. Calculations in uncertain branches retain errors until that branch actually runs.
+The displayed expression preserves evaluation order with only necessary grouping
+parentheses, using the same precedence and associativity as the parser.
+
+`roll(id)` evaluates the reduced tree directly on an explicit action. All referenced dice
+share one result log, so keep/drop functions accept referenced dice pools. Repeated dice
+references are independent evaluations, not cached roll results. Boolean literals `true`
+and `false` are accepted and retain their types during reduction.
+
+Original formula limits (1024 UTF-8 bytes and 500 nodes) apply per source, rather than to an
+expanded expression. Reference, reduction, evaluation, and formatting traversals are bounded
+(128 levels and 100,000 steps). Expanded display output is limited to 65,536 UTF-8 bytes.
+Deterministic dependency diamonds are memoized during reduction instead of expanded.
 
 ## Versioned GitHub Releases
 
@@ -46,11 +89,11 @@ Use `evaluate()` only for expressions without dice. Fields are referenced with b
 archives the build on every push. Pushing a tag matching the crate version also creates a
 GitHub Release containing `dice-wasm-vX.Y.Z.tgz`.
 
-To publish version 0.1.0:
+To publish version 0.2.0:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 For future releases, first bump the version in `Cargo.toml`, refresh `Cargo.lock`,
