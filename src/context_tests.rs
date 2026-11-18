@@ -284,3 +284,49 @@ fn formatter_preserves_three_operator_chains() {
         }
     }
 }
+
+#[test]
+fn compact_resolution_matches_full_preview() {
+    let context = context(&[
+        ("STAT", "18"),
+        ("MOD", "floor(({STAT} - 10) / 2)"),
+        ("POOL", "3d6"),
+        ("DAMAGE", "kh({POOL}, 2) + {MOD}"),
+        ("FLAG", "{STAT} >= 18"),
+        ("LAZY", "1 ? {MOD} : 1d6"),
+    ]);
+    for id in ["STAT", "MOD", "POOL", "DAMAGE", "FLAG", "LAZY"] {
+        let full = context.describe(id).unwrap();
+        let compact = context.describe_compact(id).unwrap();
+        assert_eq!(compact.rollable, full.rollable, "{id}");
+        assert_eq!(compact.value, full.value, "{id}");
+        assert_eq!(
+            compact.expression.as_deref(),
+            if full.rollable { Some(full.expression.as_str()) } else { None },
+            "{id}"
+        );
+        assert_eq!(full.dependencies, context.dependencies_for(id).unwrap());
+    }
+}
+
+#[test]
+fn compact_resolution_preserves_errors_and_inactive_branch_checks() {
+    let context = context(&[
+        ("CYCLE_A", "{CYCLE_B}"),
+        ("CYCLE_B", "{CYCLE_A}"),
+        ("MISSING", "1 ? 3 : {NOT_FOUND}"),
+        ("BAD", "sqrt(-1)"),
+        ("SAFE", "0 ? sqrt(-1) : 7"),
+    ]);
+    for id in ["CYCLE_A", "MISSING", "BAD", "UNKNOWN"] {
+        assert_eq!(
+            context.describe_compact(id).err(),
+            context.describe(id).err(),
+            "{id}"
+        );
+    }
+    let safe = context.describe_compact("SAFE").unwrap();
+    assert!(matches!(safe.value, Some(BaseValue::Number(7.0))));
+    assert!(!safe.rollable);
+    assert!(safe.expression.is_none());
+}
