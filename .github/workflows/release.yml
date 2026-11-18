@@ -2,7 +2,7 @@ name: Build and release WASM package
 
 on:
   push:
-    branches: [main]
+    branches: [main, exp/compact-api]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -35,6 +35,18 @@ jobs:
       - name: Verify package archive
         working-directory: dist
         run: npm pack --dry-run
+      - name: Package experimental 0.2.1 tarball
+        if: github.ref == 'refs/heads/exp/compact-api'
+        working-directory: dist
+        run: |
+          archive=$(npm pack --pack-destination .. --silent)
+          mv "../$archive" ../dice-wasm-0.2.1.tgz
+      - uses: actions/upload-artifact@v6
+        if: github.ref == 'refs/heads/exp/compact-api'
+        with:
+          name: dice-wasm-0.2.1-tarball
+          path: dice-wasm-0.2.1.tgz
+          if-no-files-found: error
       - uses: actions/upload-artifact@v6
         with:
           name: dice-wasm-package
