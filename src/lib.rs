@@ -241,7 +241,7 @@ struct Outcome {
     value: BaseValue,
     dice: Vec<DiceResult>,
 }
-#[derive(Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 enum BaseValue {
     Number(f64),
@@ -719,6 +719,16 @@ struct Resolution {
     dependencies: Vec<String>,
 }
 
+/// A render-oriented projection; dependency inspection stays available via
+/// the existing full resolve API and the direct compiled-formula API.
+#[derive(Serialize)]
+struct CompactResolution {
+    value: Option<BaseValue>,
+    rollable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expression: Option<String>,
+}
+
 /// Owns references to compiled formulas, not expanded strings or copied trees.
 #[wasm_bindgen]
 #[derive(Default)]
@@ -778,6 +788,25 @@ impl FormulaContext {
             dependencies,
         })
     }
+    fn describe_compact(&self, name: &str) -> Result<CompactResolution, String> {
+        // Match full resolve's validation semantics, including cycles in
+        // syntactically referenced but currently inactive branches.
+        self.dependencies_for(name)?;
+        let reduced = Reduction::new(&self.fields).field(name)?;
+        if reduced.rollable {
+            Ok(CompactResolution {
+                value: None,
+                rollable: true,
+                expression: Some(format_expression(&reduced.ast)?),
+            })
+        } else {
+            Ok(CompactResolution {
+                value: Some(run(&reduced.ast, &self.fields, false)?.value),
+                rollable: false,
+                expression: None,
+            })
+        }
+    }
     fn roll_outcome(&self, name: &str) -> Result<Outcome, String> {
         self.dependencies_for(name)?;
         let reduced = Reduction::new(&self.fields).field(name)?;
@@ -798,6 +827,13 @@ impl FormulaContext {
     }
     pub fn resolve(&self, name: &str) -> Result<JsValue, JsValue> {
         self.describe(name)
+            .and_then(|value| serde_wasm_bindgen::to_value(&value).map_err(|e| e.to_string()))
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    /// Rendering-only resolution: no dependencies array and no formatted
+    /// expression for deterministic values. The full resolve API is retained.
+    pub fn resolve_compact(&self, name: &str) -> Result<JsValue, JsValue> {
+        self.describe_compact(name)
             .and_then(|value| serde_wasm_bindgen::to_value(&value).map_err(|e| e.to_string()))
             .map_err(|e| JsValue::from_str(&e))
     }
