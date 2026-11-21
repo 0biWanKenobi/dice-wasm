@@ -22,7 +22,7 @@ Install the versioned GitHub Release asset with npm (npm is the package installe
 not the package host):
 
 ```sh
-npm install https://github.com/0biWanKenobi/dice-wasm/releases/download/v0.2.0/dice-wasm-v0.2.0.tgz
+npm install https://github.com/0biWanKenobi/dice-wasm/releases/download/v0.2.1/dice-wasm-v0.2.1.tgz
 ```
 
 Then import the packaged library by its declared package name:
